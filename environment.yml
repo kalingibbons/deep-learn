@@ -1,0 +1,16 @@
+name: deeplearn
+channels:
+  - defaults
+dependencies:
+  - python=3.7
+  - scipy
+  - numpy
+  - matplotlib
+  - seaborn
+  - pandas
+  - jupyterlab
+  - spyder
+  - h5py
+  - opencv
+  - scikit-learn
+  - progressbar2

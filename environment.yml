@@ -14,6 +14,7 @@ dependencies:
   - opencv
   - scikit-learn
   - progressbar2
+  - nodejs
   - pip:
     - keras==2.2.4
     - tensorflow==1.15.0

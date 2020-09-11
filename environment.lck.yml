@@ -83,6 +83,7 @@ dependencies:
   - msys2-conda-epoch=20160418=1
   - nbconvert=5.6.1=py37_1
   - nbformat=5.0.7=py_0
+  - nodejs=10.13.0=0
   - notebook=6.1.1=py37_0
   - numpy=1.19.1=py37h5510c5b_0
   - numpy-base=1.19.1=py37ha3acd2a_0
@@ -204,3 +205,4 @@ dependencies:
     - tensorflow-estimator==1.15.1
     - termcolor==1.1.0
     - werkzeug==1.0.1
+prefix: C:\Users\kalin\Miniconda3\envs\deeplearn

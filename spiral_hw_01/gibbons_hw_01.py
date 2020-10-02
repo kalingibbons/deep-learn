@@ -60,17 +60,35 @@ def relu(vals):
     return np.maximum(0, vals)
 
 
+def weighted_input(weights, inputs, bias):
+    return weights @ inputs + bias
+
+
+def update_parameter(parameter, parameter_partial):
+    return parameter - learn_rate * parameter_partial
+
+
+def add_regularization(weight, weight_partial):
+    return weight_partial + (reg_strength / n_feature) * weight
+
+
+def sum_sqr(arr):
+    return np.sum(arr ** 2)
+
 # %%
 # gradient descent loop
 X = np.transpose(data_mat)
 n_feature = X.shape[1]
 n_epochs = int(1e4)
+cost_scaler = 0.5 * (reg_strength / n_feature)
+# TODO: make this into a function Loop just updates weights
 for epoch in range(n_epochs):
 
     # evaluate class scores, [N x K]
     # note: Array broadcasting & ReLU activation
-    activation_2 = np.maximum(0, np.dot(weight_2, X) + bias_2)
-    weight_inp_3 = np.dot(weight_3, activation_2) + bias_3
+    weight_inp_2 = weighted_input(weight_2, X, bias_2)
+    activation_2 = relu(weight_inp_2)
+    weight_inp_3 = weighted_input(weight_3, activation_2, bias_3)
 
     # compute the class probabilities
     exp_weight_inp_3 = np.exp(weight_inp_3)
@@ -79,51 +97,52 @@ for epoch in range(n_epochs):
 
     # compute the loss: average maximum likelihood cost (cross entropy) and
     # regularization
+    # TODO: Make this a function
     cost_y = -np.log(activation_3[true_labels, range(n_feature)])
     avg_cost_y = np.sum(cost_y) / n_feature
-    cost_W2W3 = (
-        0.5 * (reg_strength / n_feature) * np.sum(weight_2 * weight_2)
-        + 0.5 * (reg_strength / n_feature) * np.sum(weight_3 * weight_3)
-    )
+    cost_W2W3 = cost_scaler * np.sum((sum_sqr(weight_2), sum_sqr(weight_3)))
     cost = avg_cost_y + cost_W2W3
     if epoch % 1000 == 0:   # % -  modulo
-        print("iteration %d: loss %f" % (epoch, cost))
+        print(f'Epoch {epoch:04d}: loss {cost:.5f}')
 
     # compute the gradient on scores
+    # TODO: Make this a function
     delta_3 = activation_3
     delta_3[true_labels, range(n_feature)] -= 1
     delta_3 /= n_feature
 
     # backpropogate the gradient to the parameters
     # first backpropogate into parameters W3 and b3
-    grad_weight_3 = np.dot(delta_3, activation_2.T)
-    grad_bias_3 = np.sum(delta_3, axis=1, keepdims=True)
+    # TODO: Make this a function until regularization
+    weight_3_partial = delta_3 @ activation_2.T
+    bias_3_partial = delta_3.sum(axis=1, keepdims=True)
 
     # next backprop into hidden layer
-    delta_2 = np.dot(weight_3.T, delta_3)
+    delta_2 = weight_3.T @ delta_3
 
     # backprop the ReLU non-linearity
     delta_2[activation_2 <= 0] = 0
 
     # finally into W,b
-    grad_weight_2 = np.dot(delta_2, X.T)
-    grad_bias_2 = np.sum(delta_2, axis=1, keepdims=True)
+    weight_2_partial = delta_2 @ X.T
+    bias_2_partial = delta_2.sum(axis=1, keepdims=True)
 
     # add regularization gradient contribution
-    grad_weight_3 += (reg_strength / n_feature) * weight_3
-    grad_weight_2 += (reg_strength / n_feature) * weight_2
+    weight_3_partial = add_regularization(weight_3, weight_3_partial)
+    weight_2_partial = add_regularization(weight_2, weight_2_partial)
 
     # perform a parameter update
-    weight_2 += -learn_rate * grad_weight_2
-    weight_3 += -learn_rate * grad_weight_3
-    bias_2 += -learn_rate * grad_bias_2
-    bias_3 += -learn_rate * grad_bias_3
+    weight_2 = update_parameter(weight_2, weight_2_partial)
+    bias_2 = update_parameter(bias_2, bias_2_partial)
+
+    weight_3 = update_parameter(weight_3, weight_3_partial)
+    bias_3 = update_parameter(bias_3, bias_3_partial)
 
 # evaluate training set accuracy
-activation_2 = np.maximum(0, np.dot(weight_2, X) + bias_2)
-activation_3 = np.dot(weight_3, activation_2) + bias_3
-predicted_class = np.argmax(activation_3, axis=0)
-print('training accuracy: %.4f' % (np.mean(predicted_class == true_labels)))
+activation_2 = relu(weighted_input(weight_2, X, bias_2))
+activation_3 = weighted_input(weight_3, activation_2, bias_3)
+predicted_class = activation_3.argmax(axis=0)
+print(f'training accuracy: {np.mean(predicted_class == true_labels):.4f}')
 misses = np.argwhere(predicted_class != true_labels)
 #
 # plot the resulting classifier
@@ -132,15 +151,10 @@ x_min, x_max = X[0, :].min() - 1, X[0, :].max() + 1
 y_min, y_max = X[1, :].min() - 1, X[1, :].max() + 1
 xx, yy = np.meshgrid(np.arange(x_min, x_max, g),
                      np.arange(y_min, y_max, g))
-print
-print("xx.shape:"), print(xx.shape)
-print
-print("yy.shape:"), print(yy.shape)
-print
 
-# Zt = np.dot(
-#     np.maximum(0, np.dot(np.c_[xx.ravel(), yy.ravel()], W2t) + b2t), W3t
-# ) + b3t
+print(f'\nxx.shape: \n\t{xx.shape}\n')
+print(f'yy.shape: \n\t{yy.shape}\n')
+
 Xt_grid = np.c_[xx.ravel(), yy.ravel()]
 X_grid = np.transpose(Xt_grid)
 a2_grid = np.maximum(0, np.dot(weight_2, X_grid) + bias_2)
@@ -149,7 +163,7 @@ Z = np.argmax(z3_grid, axis=0)
 Z = np.argmax(z3_grid, axis=0)
 Z = Z.reshape(xx.shape)
 fig = plt.figure()
-plt.contourf(xx, yy, Z, cmap=plt.cm.Spectral, alpha=0.8)
+plt.contourf(xx, yy, Z, cmap=plt.cm.winter, alpha=0.3)
 plt.scatter(X[0, :], X[1, :], c=true_labels, s=40, cmap=plt.cm.winter)
 plt.xlim(xx.min(), xx.max())
 plt.ylim(yy.min(), yy.max())
@@ -162,5 +176,4 @@ z3_origin = np.asarray(
 z3_argmax = np.argmax(z3_origin, axis=0)
 
 end = time.time()
-print('time needed to run program:', end - start)
-
+print(f'Time needed to run program: {end - start:.4f} seconds')

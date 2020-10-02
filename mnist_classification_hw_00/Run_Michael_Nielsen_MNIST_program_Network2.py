@@ -12,7 +12,6 @@ net.SGD(training_data,
         eta=0.5,
         lmbda=0,
         evaluation_data=test_data,
-        lmbda=5,
         monitor_evaluation_accuracy=True,
         monitor_training_cost=True)
 

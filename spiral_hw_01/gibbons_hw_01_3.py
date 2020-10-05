@@ -14,7 +14,10 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 
-from spiral_training_data import generate_spiral_data
+try:
+    from spiral_training_data import generate_spiral_data
+except:
+    import Spiral_training_data
 
 start = time.time()
 
@@ -28,11 +31,24 @@ try:
 except NameError:
     n_classes = 3
     n_dims = 2
-    n_points = 100
+    n_points = 5
     n_hidden = 100  # size of hidden layer
     data_mat, true_labels = generate_spiral_data(n_classes=n_classes,
                                                  n_dims=n_dims,
                                                  n_points=n_points)
+
+
+def one_hot(array):
+    y = array.copy()
+    oh = np.zeros((y.size, y.max() + 1))
+    oh[np.arange(y.size), y] = 1
+    return oh
+
+
+true_labels = one_hot(true_labels).T
+# sizes = [n_dims, n_hidden, n_classes]
+# y = [y for y in sizes[1:]]
+# x = [x for x in sizes[:-1]]
 
 weight_2 = 0.01 * np.random.randn(n_hidden, n_dims)
 bias_2 = np.zeros((n_hidden, 1))
@@ -41,29 +57,17 @@ weight_3 = 0.01 * np.random.randn(n_classes, n_hidden)
 bias_3 = np.zeros((n_classes, 1))
 
 # some hyperparameters
-learn_rate = 1e-3  # learning rate / step size. Eta in formulas
-reg_strength = 1e-3  # regularization strength. Lambda in formulas
+learn_rate = 1e-0  # learning rate / step size. Eta in formulas
+reg_strength = 0*1e-3  # regularization strength. Lambda in formulas
 
 
 # %%
 def relu(vals):
-    """Filter using Rectified Linear Unit
-
-    Any value less than zero is replaced with zero. The rest remain unchanged.
-
-    Args:
-        vals (float): The values to be filtered.
-
-    Returns:
-        float: The filtered values, all >= 0.
-    """
     return np.maximum(0, vals)
 
 
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
-    # dummy = np.exp(z)
-    # return dummy / (1 + dummy)
 
 
 def sigmoid_prime(z):
@@ -79,81 +83,58 @@ def update_parameter(parameter, parameter_partial):
 
 
 def add_regularization(weight, weight_partial):
-    return weight_partial + (reg_strength / n_feature) * weight
+    return weight_partial + (reg_strength / n_observation) * weight
+    # return weight_partial + reg_strength * weight
 
 
-def sum_sqr(arr):
+def ss(arr):
     return np.sum(arr ** 2)
 
 
 # %%
 # gradient descent loop
 X = np.transpose(data_mat)
-n_feature = X.shape[1]
-n_epochs = int(1e4)
-cost_scaler = 0.5 * (reg_strength / n_feature)
-# TODO: make this into a function Loop just updates weights
+n_observation = X.shape[1]
+n_epochs = int(1e6)
+cost_scaler = 0.5 * (reg_strength / n_observation)
+# cost_scaler = 0.5 * (reg_strength / 1)
+
 for epoch in range(n_epochs):
 
-    # evaluate class scores, [K, N]
-    # note: Array broadcasting & ReLU activation
+    # Compute weighted inputs and activations
     weight_inp_2 = weighted_input(weight_2, X, bias_2)
-    # activation_2 = relu(weight_inp_2) # [N x K * D]
     activation_2 = sigmoid(weight_inp_2)
-    weight_inp_3 = weighted_input(weight_3, activation_2, bias_3)  # [K, N * D]
 
-    # compute the class probabilities
-    # exp_weight_inp_3 = np.exp(weight_inp_3)
-    # exp_sum = np.sum(exp_weight_inp_3, axis=0, keepdims=True)
-    # activation_3 = exp_weight_inp_3 / exp_sum  # [K, N]
+    weight_inp_3 = weighted_input(weight_3, activation_2, bias_3)
     activation_3 = sigmoid(weight_inp_3)
 
-    # compute the loss: average maximum likelihood cost (cross entropy) and
-    # regularization
-    # TODO: Make this a function
-    # cost_y = -np.log(activation_3[true_labels, range(n_feature)])
-    # avg_cost_y = np.sum(cost_y) / n_feature
-    # cost_W2W3 = cost_scaler * np.sum((sum_sqr(weight_2), sum_sqr(weight_3)))
-    # cost = avg_cost_y + cost_W2W3
+    # Compute the loss
     cost_y = 0.5 * ((true_labels - activation_3) ** 2)
-    avg_cost_y = cost_y.sum() / n_feature
-    cost_w2w3 = cost_scaler * np.sum((sum_sqr(weight_2), sum_sqr(weight_3)))
-    cost = avg_cost_y + cost_w2w3
+    avg_cost_y = cost_y.sum() / n_observation
+    cost_regularization = cost_scaler * np.sum((ss(weight_2), ss(weight_3)))
+    cost = avg_cost_y + cost_regularization
     if epoch % 1000 == 0:   # % -  modulo
         print(f'Epoch {epoch:04d}: loss {cost:.5f}')
 
-    # compute the gradient on scores
-    # TODO: Make this a function
-    # delta_3 = activation_3
-    # delta_3[true_labels, range(n_feature)] -= 1
-    # delta_3 /= n_feature
+    # Compute the error term
     delta_3 = (activation_3 - true_labels) * sigmoid_prime(weight_inp_3)
-    delta_3 /= n_feature
+    delta_3 /= n_observation
 
-    # backpropogate the gradient to the parameters
-    # first backpropogate into parameters W3 and b3
-    # TODO: Make this a function until regularization
+    # Use backprop to get the gradient of the parameters
+    # First backprop into parameters W3 and b3
     weight_3_partial = delta_3 @ activation_2.T
+    weight_3_partial = add_regularization(weight_3, weight_3_partial)
     bias_3_partial = delta_3.sum(axis=1, keepdims=True)
-    # bias_3_partial = delta_3
 
-    # next backprop into hidden layer
-    # delta_2 = weight_3.T @ delta_3
+    # Next backprop into hidden layer
     delta_2 = (weight_3.T @ delta_3) * sigmoid_prime(weight_inp_2)
 
-    # backprop the ReLU non-linearity
-    # delta_2[activation_2 <= 0] = 0
-
-    # finally into W,b
+    # Finally into W,b
     weight_2_partial = delta_2 @ X.T
-    bias_2_partial = delta_2.sum(axis=1, keepdims=True)
-    # bias_2_partial = delta_2
-
-    # add regularization gradient contribution
-    weight_3_partial = add_regularization(weight_3, weight_3_partial)
     weight_2_partial = add_regularization(weight_2, weight_2_partial)
+    bias_2_partial = delta_2.sum(axis=1, keepdims=True)
 
-    # perform a parameter update
+    # Update weights and biases
     weight_2 = update_parameter(weight_2, weight_2_partial)
     bias_2 = update_parameter(bias_2, bias_2_partial)
 
@@ -186,16 +167,24 @@ Z = np.argmax(z3_grid, axis=0)
 Z = Z.reshape(xx.shape)
 fig = plt.figure()
 plt.contourf(xx, yy, Z, cmap=plt.cm.winter, alpha=0.3)
-plt.scatter(X[0, :], X[1, :], c=true_labels, s=40, cmap=plt.cm.winter)
+plt.scatter(X[0, :], X[1, :], c=true_labels.argmax(axis=0), s=40, cmap=plt.cm.winter)
 plt.xlim(xx.min(), xx.max())
 plt.ylim(yy.min(), yy.max())
 fig.savefig('spiral_net.png')
 
-# origin = [X[:, 0], X[:, 100], X[:, 200]]
-# z3_origin = np.asarray(
-#     [weight_inp_3[:, 0], weight_inp_3[:, 100], weight_inp_3[:, 200]]
-# ).T
-# z3_argmax = np.argmax(z3_origin, axis=0)
+end = time.time()
+print(f'Time needed to run program: {end - start:.4f} seconds')
 
-# end = time.time()
-# print(f'Time needed to run program: {end - start:.4f} seconds')
+print(activation_3.shape)
+print("")
+print(activation_3)
+print("")
+print(true_labels.shape)
+print("")
+print(true_labels)
+print("")
+print("true_labels-activation_3")
+print("")
+print(true_labels-activation_3)
+print("")
+print("Incorrect Use of broadcasting!!!")

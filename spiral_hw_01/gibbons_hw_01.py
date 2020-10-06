@@ -18,7 +18,11 @@ import numpy as np
 # %%
 # initialize parameters randomly
 try:
-    from spiral_training_data import generate_spiral_data
+    (n_classes, n_dims, n_points, n_hidden) = (K, D, N, h)
+    (data_mat, true_labels) = (Xt, y)
+
+except NameError:
+    from spiral_data import generate_spiral_data
     n_classes = 3
     n_dims = 2
     n_points = 100
@@ -26,11 +30,6 @@ try:
     data_mat, true_labels = generate_spiral_data(n_classes=n_classes,
                                                  n_dims=n_dims,
                                                  n_points=n_points)
-
-except ImportError:
-    (n_classes, n_dims, n_points, n_hidden) = (K, D, N, h)
-    (data_mat, true_labels) = (Xt, y)
-
 
 # %%
 def encode(array):
@@ -149,60 +148,40 @@ for epoch in range(n_epochs):
         print(f'Epoch {epoch:04d}: loss {cost:.5f}')
 
     # ---- Backpropagation ----
-    # Initialize backpropagation using the final layer
-    activations = [X, active_2]
     weights = [weight_2, weight_3]
     biases = [bias_2, bias_3]
+
     weighted_inputs = [weight_inp_2, weight_inp_3]
+    activations = [X, active_2]
     delta = calc_err(true_labels, active_3, weight_inp_3, n_obs)
     for idx in reversed(range(len(weights))):
         a = activations[idx]
         w = weights[idx]
         b = biases[idx]
-        z = weighted_inputs[idx - 1]
+        z_prev = weighted_inputs[idx - 1]
+
+        # Backpropagate partial derivatives
         weight_pprime = backprop_weight(delta, a, reg_strength, n_obs, w)
         bias_pprime = backprop_bias(delta, axis=1)
+
+        # Update parameters
         weights[idx] = update_parameter(w, weight_pprime)
         biases[idx] = update_parameter(b, bias_pprime)
         if idx > 0:
-            delta = backprop_err(delta, w, z)
+            delta = backprop_err(delta, w, z_prev)
 
     weight_2, weight_3 = weights
     bias_2, bias_3 = biases
 
-    # delta = calc_err(true_labels, active_3, weight_inp_3, n_obs)
-    # weight_3_partial = backprop_weight(err=delta,
-    #                                    inp=active_2,
-    #                                    strength=reg_strength,
-    #                                    n_obs=n_obs,
-    #                                    weight=weight_3)
 
-    # bias_3_partial = backprop_bias(delta, axis=1)
-
-    # # Next backpropagate into previous (hidden layer)
-    # delta = backprop_err(delta, weight_3, weight_inp_2)
-    # weight_2_partial = backprop_weight(err=delta,
-    #                                    inp=X,
-    #                                    strength=reg_strength,
-    #                                    n_obs=n_obs,
-    #                                    weight=weight_2)
-
-    # bias_2_partial = backprop_bias(delta, axis=1)
-
-    # # --- Parameter Updates ---
-    # weight_2 = update_parameter(weight_2, weight_2_partial)
-    # bias_2 = update_parameter(bias_2, bias_2_partial)
-
-    # weight_3 = update_parameter(weight_3, weight_3_partial)
-    # bias_3 = update_parameter(bias_3, bias_3_partial)
-
-# evaluate training set accuracy
+# --- Evaluation Metrics ---
+# Evaluate training accuracy
 predicted_labels = decode(active_3)
 true_labels = decode(true_labels)
 print(f'training accuracy: {np.mean(predicted_labels == true_labels):.4f}')
 misses = np.argwhere(predicted_labels != true_labels)
 
-# plot the resulting classifier
+# --- Evaluation Plots ---
 g = 0.02
 x_min, x_max = X[0, :].min() - 1, X[0, :].max() + 1
 y_min, y_max = X[1, :].min() - 1, X[1, :].max() + 1
@@ -215,7 +194,6 @@ print(f'yy.shape: \n\t{yy.shape}\n')
 Xt_grid = np.c_[xx.ravel(), yy.ravel()]
 X_grid = np.transpose(Xt_grid)
 z2_grid = weighted_input(weight_2, X_grid, bias_2)
-# a2_grid = np.maximum(0, np.dot(weight_2, X_grid) + bias_2)
 a2_grid = sigmoid(z2_grid)
 z3_grid = np.dot(weight_3, a2_grid) + bias_3
 Z = np.argmax(z3_grid, axis=0)

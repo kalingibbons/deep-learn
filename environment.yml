@@ -15,6 +15,10 @@ dependencies:
   - scikit-learn
   - progressbar2
   - nodejs
+  - cudatoolkit=10.0
+  - cudnn
+  - tensorflow-gpu=1.15.0
+  - keras=2.2.4
   - pip:
-    - keras==2.2.4
-    - tensorflow==1.15.0
+    # - keras==2.2.4
+    # - tensorflow-gpu==1.15.0
